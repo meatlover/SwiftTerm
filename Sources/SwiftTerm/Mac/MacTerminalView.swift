@@ -148,6 +148,26 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     private var progressReportTimer: Timer?
     private var lastProgressValue: UInt8?
 
+    // MARK: - Meatmux fork-only hooks
+    //
+    // These properties and callbacks are carried in the meatlover/swiftterm
+    // fork for Meatmux integration. They are NOT upstreamed. See
+    // docs/MEATMUX-HOOKS.md in the fork for context.
+
+    /// Optional overlay NSView that sits above the terminal layer. Meatmux
+    /// uses this for reconnecting indicators, badges, and borders. Setting
+    /// a new value removes the previous overlay.
+    public var overlayView: NSView? {
+        didSet {
+            oldValue?.removeFromSuperview()
+            if let v = overlayView {
+                addSubview(v, positioned: .above, relativeTo: nil)
+                v.frame = bounds
+                v.autoresizingMask = [.width, .height]
+            }
+        }
+    }
+
     var selection: SelectionService!
     private var scroller: NSScroller!
     
@@ -2421,13 +2441,15 @@ extension TerminalViewDelegate {
             NSWorkspace.shared.open(url)
         }
     }
-    
+
     public func bell (source: TerminalView)
     {
         NSSound.beep()
     }
-    
+
     public func iTermContent (source: TerminalView, content: ArraySlice<UInt8>) {
     }
+
+    public func shouldAllowOSC52(_ data: Data) -> Bool { true }
 }
 #endif
