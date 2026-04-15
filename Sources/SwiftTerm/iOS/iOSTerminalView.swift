@@ -2665,6 +2665,8 @@ extension TerminalViewDelegate {
     
     public func iTermContent (source: TerminalView, content: ArraySlice<UInt8>) {
     }
+
+    public func shouldAllowOSC52(_ data: Data) -> Bool { true }
 }
 
 #if canImport(UIKit) && DEBUG

@@ -105,6 +105,7 @@ open class LocalProcessTerminalView: TerminalView, TerminalViewDelegate, LocalPr
     }
     
     public func clipboardCopy(source: TerminalView, content: Data) {
+        guard terminalDelegate?.shouldAllowOSC52(content) ?? true else { return }
         if let str = String (bytes: content, encoding: .utf8) {
             let pasteBoard = NSPasteboard.general
             pasteBoard.clearContents()

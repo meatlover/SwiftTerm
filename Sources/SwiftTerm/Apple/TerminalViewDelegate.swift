@@ -73,6 +73,10 @@ public protocol TerminalViewDelegate: AnyObject {
      * The default implementation does nothing.
      */
     func clipboardCopy(source: TerminalView, content: Data)
+
+    /// Meatmux fork-only hook. Return false to suppress an OSC 52 clipboard
+    /// write from reaching the system pasteboard. Default returns true.
+    func shouldAllowOSC52(_ data: Data) -> Bool
     
     /**
      * This method is invoked when the client application (iTerm2) has issued a OSC 1337 and
