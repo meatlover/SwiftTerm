@@ -6631,6 +6631,26 @@ open class Terminal {
     }
 }
 
+// MARK: - Meatmux fork-only hooks
+
+extension Terminal {
+    /// Meatmux fork-only hook — read a range of scrollback lines as plain
+    /// strings. Indices are 0-based from the oldest line in the buffer.
+    /// `from` and `to` are clamped to the valid range. Returns an empty
+    /// array if there is no overlap.
+    public func readScrollbackRange(from: Int, to: Int) -> [String] {
+        let lineCount = buffer.lines.count
+        let start = max(0, min(from, lineCount))
+        let end   = max(start, min(to, lineCount))
+        var out: [String] = []
+        out.reserveCapacity(end - start)
+        for i in start..<end {
+            out.append(translateBufferLineToString(buffer: buffer, line: i, start: 0, end: buffer.cols))
+        }
+        return out
+    }
+}
+
 // Default implementations
 public extension TerminalDelegate {
     func cursorStyleChanged (source: Terminal, newStyle: CursorStyle)
