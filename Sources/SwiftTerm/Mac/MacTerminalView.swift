@@ -145,6 +145,17 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     var cellDimension: CellDimension!
     var caretView: CaretView!
     public var terminal: Terminal!
+
+    /// LRU glyph cache: memoizes per-scalar CoreText layout for the hot cell-draw path.
+    /// Cache plumbing only — draw-path consumption deferred to a follow-up patch.
+    private let glyphCache = GlyphCache()
+
+    /// Pre-populate the glyph cache for the given string using the current primary font.
+    /// Call with printable ASCII (32-126) from setup() so the first paint avoids
+    /// cold-cache CoreText overhead.
+    public func warmGlyphCache(fromString string: String) {
+        glyphCache.warm(string: string, font: font)
+    }
     private var progressBarView: TerminalProgressBarView?
     private var progressReportTimer: Timer?
     private var lastProgressValue: UInt8?
@@ -243,6 +254,10 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
         setupProgressBar()
         setupFocusNotification()
         startDisplayLink()
+        // Pre-warm glyph cache for printable ASCII to avoid cold-cache CoreText
+        // overhead on first paint. Cache plumbing only — draw path not yet wired.
+        let ascii = String((32...126).compactMap { Unicode.Scalar($0).map { Character($0) } })
+        warmGlyphCache(fromString: ascii)
     }
 
 #if canImport(MetalKit)
