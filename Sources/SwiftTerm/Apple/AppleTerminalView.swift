@@ -1626,10 +1626,10 @@ extension TerminalView {
             }
             requestMetalDisplay()
         } else {
-            setNeedsDisplay(region)
+            scheduleRepaint(region)
         }
 #else
-        setNeedsDisplay(region)
+        scheduleRepaint(region)
 #endif
         #else
         // TODO iOS: need to update the code above, but will do that when I get some real

@@ -13,6 +13,7 @@ import Foundation
 import AppKit
 import CoreText
 import CoreGraphics
+import CoreVideo
 import Carbon.HIToolbox
 #if canImport(MetalKit)
 import MetalKit
@@ -241,6 +242,7 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
         setupOptions()
         setupProgressBar()
         setupFocusNotification()
+        startDisplayLink()
     }
 
 #if canImport(MetalKit)
@@ -328,8 +330,79 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     }
     
     var becomeMainObserver, resignMainObserver: NSObjectProtocol?
-    
+
+    // MARK: - Display-link coalesced repaint (M4 L1.1)
+
+    /// When `true` (default), `setNeedsDisplay` calls from the VT-feed path are
+    /// coalesced against the display refresh rate using CVDisplayLink.
+    /// Set to `false` to fall through to `super.setNeedsDisplay(_:)` immediately,
+    /// which preserves legacy behavior and is useful for debugging paint issues.
+    public var repaintCoalescing: Bool = true
+
+    private var coalescedDirtyRect: CGRect? = nil
+    private var displayLinkPtr: CVDisplayLink? = nil
+    private let coalesceLock = NSLock()
+
+    private func startDisplayLink() {
+        var link: CVDisplayLink?
+        CVDisplayLinkCreateWithActiveCGDisplays(&link)
+        guard let link = link else { return }
+        displayLinkPtr = link
+
+        let opaque = Unmanaged.passUnretained(self).toOpaque()
+        CVDisplayLinkSetOutputCallback(link, { (_, _, _, _, _, ptr) -> CVReturn in
+            guard let ptr = ptr else { return kCVReturnSuccess }
+            let view = Unmanaged<TerminalView>.fromOpaque(ptr).takeUnretainedValue()
+            DispatchQueue.main.async { view.flushCoalescedRepaint() }
+            return kCVReturnSuccess
+        }, opaque)
+
+        CVDisplayLinkStart(link)
+    }
+
+    private func stopDisplayLink() {
+        if let link = displayLinkPtr {
+            CVDisplayLinkStop(link)
+            // CVDisplayLink is ARC-managed via Swift bridging; no manual release needed.
+            displayLinkPtr = nil
+        }
+    }
+
+    /// Entry point for VT-feed-triggered repaints. Stores the union of requested
+    /// rects; the actual `setNeedsDisplay` is deferred to the next display refresh.
+    /// When `repaintCoalescing` is `false`, falls through immediately.
+    public func scheduleRepaint(_ rect: CGRect) {
+        if !repaintCoalescing {
+            super.setNeedsDisplay(rect)
+            return
+        }
+        coalesceLock.lock()
+        if let existing = coalescedDirtyRect {
+            coalescedDirtyRect = existing.union(rect)
+        } else {
+            coalescedDirtyRect = rect
+        }
+        coalesceLock.unlock()
+    }
+
+    fileprivate func flushCoalescedRepaint() {
+        coalesceLock.lock()
+        let r = coalescedDirtyRect
+        coalescedDirtyRect = nil
+        coalesceLock.unlock()
+        if let rect = r {
+            super.setNeedsDisplay(rect)
+        }
+    }
+
+    // Internal accessors for unit tests (reachable via @testable import).
+    internal var coalescedDirtyRectForTesting: CGRect? { coalescedDirtyRect }
+    internal func flushCoalescedRepaintForTesting() { flushCoalescedRepaint() }
+
+    // MARK: - deinit / lifecycle
+
     deinit {
+        stopDisplayLink()
         if let becomeMainObserver {
             NotificationCenter.default.removeObserver (becomeMainObserver)
         }
@@ -337,6 +410,15 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
             NotificationCenter.default.removeObserver (resignMainObserver)
         }
         progressReportTimer?.invalidate()
+    }
+
+    public override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil {
+            stopDisplayLink()
+        } else if displayLinkPtr == nil {
+            startDisplayLink()
+        }
     }
     
     func setupFocusNotification() {
