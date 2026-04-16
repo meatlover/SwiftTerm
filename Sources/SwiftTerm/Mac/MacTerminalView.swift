@@ -114,6 +114,11 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     private var findBarOptions: SearchOptions = SearchOptions()
     var debug: TerminalDebugView?
     var pendingDisplay: Bool = false
+
+    /// M4 L1.4 — When `true` (default), `updateDisplay` short-circuits when the buffer
+    /// reports no damage and the cursor blink phase has not changed. Set to `false` to
+    /// disable for debugging.
+    public var damageTrackingEnabled: Bool = true
 #if canImport(MetalKit)
     var metalView: MTKView?
     var metalRenderer: MetalTerminalRenderer?

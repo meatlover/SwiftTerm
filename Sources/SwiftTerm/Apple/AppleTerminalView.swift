@@ -1569,6 +1569,23 @@ extension TerminalView {
     {
         defer { pendingDisplay = false }
 #if os(macOS)
+        // M4 L1.4 — damage short-circuit.
+        // When damage tracking is enabled and the buffer has no pending damage and
+        // the terminal has no update range, there is nothing to repaint. Cursor blink
+        // paints are driven by setNeedsDisplay from the caret timer, not this path,
+        // so we can safely bail here without affecting them.
+        if damageTrackingEnabled {
+            let damage = terminal.buffer.takeDamage()
+            if !damage.all && damage.lines.isEmpty && terminal.getUpdateRange() == nil {
+                if notifyAccessibility {
+                    // nothing changed — skip accessibility churn too
+                }
+                return
+            }
+            // If there IS damage, fall through to the normal repaint path below.
+            // We consumed the damage snapshot above; the existing updateRange-based
+            // repaint still controls which rect gets invalidated.
+        }
         // M4 L1.5 — scroll-blit fast path.
         // If the only change is a pure forward scroll of ≤ viewport/2 rows, shift
         // existing pixels with NSView.scrollRect(by:) and repaint only the new strip.

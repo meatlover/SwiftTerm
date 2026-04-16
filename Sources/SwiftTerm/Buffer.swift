@@ -257,6 +257,42 @@ public final class Buffer {
     var scroll: (_ isWrapped: Bool)->() = { x in
         fatalError("This should be set after creating a buffer")
     }
+
+    // MARK: - M4 L1.4 Damage tracking
+
+    /// Lines that have been mutated since the last `takeDamage()` / `clearDamage()`.
+    private var damagedLines: Set<Int> = []
+
+    /// When `true` the entire screen is considered dirty (resize, buffer swap, etc.).
+    private var allDirty: Bool = false
+
+    /// Mark a single line as damaged.
+    public func markDamaged(line: Int) {
+        damagedLines.insert(line)
+    }
+
+    /// Mark a contiguous range of lines as damaged.
+    public func markDamaged(lines range: Range<Int>) {
+        for l in range { damagedLines.insert(l) }
+    }
+
+    /// Mark the whole screen as dirty (e.g. after resize or buffer swap).
+    public func markAllDamaged() {
+        allDirty = true
+    }
+
+    /// Clear damage state after a successful repaint.
+    public func clearDamage() {
+        damagedLines.removeAll(keepingCapacity: true)
+        allDirty = false
+    }
+
+    /// Consume damage: returns a snapshot and resets internal state.
+    public func takeDamage() -> (lines: [Int], all: Bool) {
+        let snapshot = (lines: damagedLines.sorted(), all: allDirty)
+        clearDamage()
+        return snapshot
+    }
     
     func setInsertMode(_ value: Bool) {
         self.insertMode = value
@@ -1158,6 +1194,8 @@ public final class Buffer {
         }
         if consumed > 0 {
             lastBufferStorage = (_y + _yBase, _x - 1, _cols, _rows)
+            // M4 L1.4: mark the row damaged after any successful ASCII run write.
+            markDamaged(line: _y)
         }
         return consumed
     }
@@ -1219,6 +1257,8 @@ public final class Buffer {
             _x = _cols-1
         }
         bufferRow[_x] = charData
+        // M4 L1.4: mark the current cursor row damaged on every cell write.
+        markDamaged(line: _y)
         _x += 1
 
         // fullwidth char - also set next cell to placeholder stub and advance cursor

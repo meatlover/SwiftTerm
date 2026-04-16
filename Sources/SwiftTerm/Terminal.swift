@@ -2397,6 +2397,8 @@ open class Terminal {
         if clearRenderMode {
             line.renderMode = .single
         }
+        // M4 L1.4: mark the erased line damaged.
+        buffer.markDamaged(line: y)
     }
     
     //
@@ -5182,6 +5184,8 @@ open class Terminal {
         let bMarginLeft = buffer.marginLeft
         let bMarginRight = buffer.marginRight
         let hasScrollback = buffer.hasScrollback
+        // M4 L1.4: scroll shifts all visible lines — mark everything dirty.
+        buffer.markAllDamaged()
 
         var newLine = blankLine
         if newLine.count != cols || newLine [0].attribute != eraseAttr () {
