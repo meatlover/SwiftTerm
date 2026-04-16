@@ -1568,6 +1568,27 @@ extension TerminalView {
     func updateDisplay (notifyAccessibility: Bool)
     {
         defer { pendingDisplay = false }
+#if os(macOS)
+        // M4 L1.5 — scroll-blit fast path.
+        // If the only change is a pure forward scroll of ≤ viewport/2 rows, shift
+        // existing pixels with NSView.scrollRect(by:) and repaint only the new strip.
+        let rowHeight = cellDimension.height
+        if rowHeight > 0 {
+            let viewportRows = Int(bounds.height / rowHeight)
+            if attemptScrollBlit(newYDisp: terminal.buffer.yDisp,
+                                 rowHeight: rowHeight,
+                                 viewportRows: viewportRows) {
+                updateCursorPosition()
+                if notifyAccessibility {
+                    accessibility.invalidate()
+                    NSAccessibility.post(element: self, notification: .valueChanged)
+                    NSAccessibility.post(element: self, notification: .selectedTextChanged)
+                }
+                updateDebugDisplay()
+                return
+            }
+        }
+#endif
         updateCursorPosition()
         guard let (rowStart, rowEnd) = terminal.getUpdateRange () else {
             if notifyUpdateChanges {

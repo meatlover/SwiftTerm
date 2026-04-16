@@ -346,6 +346,55 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     
     var becomeMainObserver, resignMainObserver: NSObjectProtocol?
 
+    // MARK: - Scroll-by-blit fast path (M4 L1.5)
+
+    /// When `true` (default), vertical scrolls of ≤ viewport/2 rows use
+    /// `NSView.scrollRect(by:)` + partial redraw rather than a full redraw.
+    /// Set to `false` to disable the optimisation (e.g. for debugging or tests).
+    public var scrollBlitEnabled: Bool = true
+
+    /// yDisp value at the end of the last full or blit paint.  Used by
+    /// `attemptScrollBlit` to compute how many rows the view scrolled.
+    private var lastPaintedYDisp: Int = 0
+
+    /// Attempt to satisfy a display update via pixel blit.
+    ///
+    /// Returns `true` if the blit was performed (caller should skip the normal
+    /// full-redraw path); returns `false` when the update does not qualify and
+    /// the caller should fall through to a regular repaint.
+    ///
+    /// - Parameters:
+    ///   - newYDisp:     The current `buffer.yDisp` after the scroll.
+    ///   - rowHeight:    Height in points of a single terminal row.
+    ///   - viewportRows: Number of rows visible in the current viewport.
+    internal func attemptScrollBlit(newYDisp: Int, rowHeight: CGFloat, viewportRows: Int) -> Bool {
+        guard scrollBlitEnabled else { return false }
+        let delta = newYDisp - lastPaintedYDisp
+        guard delta > 0 else { return false }                  // not a forward scroll
+        guard delta * 2 <= viewportRows else { return false }  // too large; full redraw wins
+        guard rowHeight > 0 else { return false }
+
+        // Shift existing pixels up by delta rows (negative dy in AppKit flipped coords).
+        let dy = -CGFloat(delta) * rowHeight
+        scroll(bounds, by: NSSize(width: 0, height: dy))
+
+        // Mark only the newly exposed bottom strip dirty.
+        let stripHeight = CGFloat(delta) * rowHeight
+        let strip = NSRect(x: 0,
+                           y: isFlipped ? bounds.maxY - stripHeight : 0,
+                           width: bounds.width,
+                           height: stripHeight)
+        scheduleRepaint(strip)
+
+        lastPaintedYDisp = newYDisp
+        return true
+    }
+
+    /// Called after a full (non-blit) repaint completes to keep the baseline in sync.
+    internal func noteFullPaintComplete(yDisp: Int) {
+        lastPaintedYDisp = yDisp
+    }
+
     // MARK: - Display-link coalesced repaint (M4 L1.1)
 
     /// When `true` (default), `setNeedsDisplay` calls from the VT-feed path are
@@ -776,7 +825,10 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
         guard let currentContext = getCurrentGraphicsContext() else {
             return
         }
-        drawTerminalContents (dirtyRect: dirtyRect, context: currentContext, bufferOffset: terminal.displayBuffer.yDisp)
+        let yDisp = terminal.displayBuffer.yDisp
+        drawTerminalContents (dirtyRect: dirtyRect, context: currentContext, bufferOffset: yDisp)
+        // M4 L1.5 — keep blit baseline in sync after every full/partial paint.
+        noteFullPaintComplete(yDisp: yDisp)
     }
     
     public override func cursorUpdate(with event: NSEvent)
