@@ -32,6 +32,10 @@ final class GlyphCache {
     private var order: [GlyphCacheKey] = []
     private let capacity: Int
 
+    // MARK: - Hit/miss counters (for future perf verification)
+    private(set) var hits: Int = 0
+    private(set) var misses: Int = 0
+
     init(capacity: Int = 4096) {
         self.capacity = capacity
         entries.reserveCapacity(capacity)
@@ -76,7 +80,11 @@ final class GlyphCache {
         let key = GlyphCacheKey(scalar: scalar.value,
                                 fontId: ObjectIdentifier(font),
                                 styleBits: styleBits)
-        if let hit = lookup(key) { return hit }
+        if let hit = lookup(key) {
+            hits += 1
+            return hit
+        }
+        misses += 1
 
         // Apply bold/italic trait via NSFontManager.
         var displayFont = font
@@ -131,5 +139,11 @@ final class GlyphCache {
 
     var count: Int { order.count }
     var capacityForTesting: Int { capacity }
+
+    /// Reset hit/miss counters. Useful in tests to isolate measurement windows.
+    func resetCounters() {
+        hits = 0
+        misses = 0
+    }
 }
 #endif

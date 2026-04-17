@@ -1366,6 +1366,29 @@ extension TerminalView {
             #endif
 
             // Glyph drawing loop — reuses cached CTLines
+            //
+            // TODO(L1.3-follow-up): Wire GlyphCache fast path here.
+            //
+            // `buildAttributedString` batches consecutive cells with identical
+            // SGR attributes into a single CTRun (one attributed-string segment
+            // can span many cells). To insert a per-cell GlyphCache bypass we
+            // need to either:
+            //   (a) Split `buildAttributedString` so that ASCII fast-path cells
+            //       produce individual segments (one cell = one segment), or
+            //   (b) Walk the `BufferLine` a second time in parallel with the run
+            //       loop here, extracting per-cell state from `CharData` to check
+            //       `TerminalView.isFastPathEligible(cellString:hasSelection:hasLink:)`.
+            //
+            // When a run qualifies (single-scalar ASCII, no selection, no link,
+            // `fastCellDraw == true`), replace `CTFontDrawGlyphs(runFont, ...)` with:
+            //   1. Look up via `glyphCache.glyph(for:font:styleBits:)`.
+            //   2. `CTFontDrawGlyphs(cached.ctFont, &[cached.glyph], &[pos], 1, context)`.
+            //   3. Call `drawRunAttributes(...)` for underline/strikethrough as usual.
+            //
+            // Pre-condition: background rect fill already happened in the loop above —
+            // the fast path only needs to emit the glyph + decorations.
+            // The `glyphCache` instance is on `TerminalView` (Mac-only); access it via
+            // `#if os(macOS) (self as? TerminalView)?.glyphCache`.
             for prepared in preparedSegments {
                 var processedGlyphs = 0
                 for run in prepared.runs {

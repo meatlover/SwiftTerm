@@ -152,8 +152,7 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     public var terminal: Terminal!
 
     /// LRU glyph cache: memoizes per-scalar CoreText layout for the hot cell-draw path.
-    /// Cache plumbing only — draw-path consumption deferred to a follow-up patch.
-    private let glyphCache = GlyphCache()
+    let glyphCache = GlyphCache()
 
     /// Pre-populate the glyph cache for the given string using the current primary font.
     /// Call with printable ASCII (32-126) from setup() so the first paint avoids
@@ -161,6 +160,40 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     public func warmGlyphCache(fromString string: String) {
         glyphCache.warm(string: string, font: font)
     }
+
+    /// When true (default), ASCII single-char cells use the GlyphCache fast
+    /// path — `CTFontDrawGlyphs` directly instead of `CTLineCreateWithAttributedString`
+    /// + `CTLineDraw`. Set to false to force the legacy CTLine path for debugging
+    /// rendering regressions.
+    ///
+    /// NOTE: The fast path is prepared but not yet wired into `drawTerminalContents`.
+    /// `buildAttributedString` builds per-row attributed-string segments (potentially
+    /// batching multiple cells with the same attributes into one CTRun), so injecting a
+    /// per-cell bypass requires restructuring that loop. See TODO(L1.3-follow-up) in
+    /// `AppleTerminalView.swift:drawTerminalContents` for the exact integration point.
+    public var fastCellDraw: Bool = true
+
+    /// Eligibility check for the GlyphCache fast path. A cell qualifies when:
+    /// - It contains exactly one Unicode scalar.
+    /// - That scalar is printable ASCII (U+0020…U+007E) — safe subset that
+    ///   avoids combining marks, RTL control chars, and surrogate pairs.
+    /// - The cell is not covered by a selection highlight.
+    /// - The cell does not carry an OSC 8 hyperlink (URL underline needs run info).
+    ///
+    /// Exposed as a `static func` so tests can verify the predicate independently
+    /// of a live draw cycle.
+    public static func isFastPathEligible(cellString: String,
+                                          hasSelection: Bool,
+                                          hasLink: Bool) -> Bool {
+        guard !hasSelection, !hasLink else { return false }
+        guard cellString.unicodeScalars.count == 1,
+              let scalar = cellString.unicodeScalars.first,
+              (0x20...0x7E).contains(scalar.value) else { return false }
+        return true
+    }
+
+    /// Internal accessor for tests: returns the shared glyph cache instance.
+    var glyphCacheForTesting: GlyphCache { glyphCache }
     private var progressBarView: TerminalProgressBarView?
     private var progressReportTimer: Timer?
     private var lastProgressValue: UInt8?
