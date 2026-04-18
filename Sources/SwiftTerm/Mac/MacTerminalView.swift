@@ -923,12 +923,17 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     //
     // NSTextInputClient protocol implementation
     //
+    /// Called when this view becomes the key input target (click or programmatic).
+    /// Wire up to detect pane focus changes from mouse clicks.
+    public var onBecomeFirstResponder: (() -> Void)?
+
     public override func becomeFirstResponder() -> Bool {
         let response = super.becomeFirstResponder()
         if response {
             hasFocus = true
             caretView.updateCursorStyle()
             terminal.setTerminalFocus(true)
+            onBecomeFirstResponder?()
         }
         return response
     }
