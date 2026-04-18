@@ -2091,12 +2091,14 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     @objc
     open func copy(_ sender: Any)
     {
-        // find the selected range of text in the buffer and put in the clipboard
         let str = selection.getSelectedText()
-        
-        let clipboard = NSPasteboard.general
-        clipboard.clearContents()
-        clipboard.setString(str, forType: .string)
+        if let d = terminalDelegate, let data = str.data(using: .utf8) {
+            d.clipboardCopy(source: self, content: data)
+        } else {
+            let clipboard = NSPasteboard.general
+            clipboard.clearContents()
+            clipboard.setString(str, forType: .string)
+        }
     }
     
     public override func selectAll(_ sender: Any?)
