@@ -1945,6 +1945,12 @@ extension TerminalView {
     /// Scrolls up the content of the terminal the specified number of lines
     public func scrollUp (lines: Int)
     {
+        guard terminal.displayBuffer.yDisp > 0 else {
+            // BF-002: at top of SwiftTerm scrollback — notify host so tmux
+            // copy-mode can take over rather than silently doing nothing.
+            onScrolledPastTop?(lines)
+            return
+        }
         let newPosition = max (terminal.displayBuffer.yDisp - lines, 0)
         scrollTo (row: newPosition)
     }

@@ -923,6 +923,11 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     //
     // NSTextInputClient protocol implementation
     //
+    /// Called when a scroll-up request arrives and the buffer is already at the
+    /// top (yDisp == 0). Allows the host to delegate further upward scrolling
+    /// to an external source such as tmux copy-mode.
+    public var onScrolledPastTop: ((Int) -> Void)?
+
     /// Called when this view becomes the key input target (click or programmatic).
     /// Wire up to detect pane focus changes from mouse clicks.
     public var onBecomeFirstResponder: (() -> Void)?
@@ -2384,12 +2389,25 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     }
     
     public override func scrollWheel(with event: NSEvent) {
-        if event.deltaY == 0 {
+        // scrollingDeltaY is precise for trackpads/Magic Mouse; deltaY is often 0 for them.
+        let delta = event.scrollingDeltaY
+        if delta == 0 { return }
+
+        // When mouse reporting is active (e.g. tmux set -g mouse on), encode the
+        // scroll as button-64 (up) / button-65 (down) and send through the PTY so
+        // tmux or other mouse-aware apps handle it natively. Don't scroll the view.
+        if allowMouseReporting && terminal.mouseMode != .off {
+            let hit = calculateMouseHit(with: event)
+            let displayBuffer = terminal.displayBuffer
+            let screenRow = max(0, min(displayBuffer.rows - 1, hit.grid.row - displayBuffer.yDisp))
+            terminal.sendEvent(buttonFlags: delta > 0 ? 64 : 65,
+                               x: hit.grid.col, y: screenRow,
+                               pixelX: hit.pixels.col, pixelY: hit.pixels.row)
             return
         }
-        let velocity = calcScrollingVelocity(delta: Int (abs (event.deltaY)))
-        if event.deltaY > 0 {
-            scrollUp (lines: velocity)
+        let velocity = calcScrollingVelocity(delta: max(1, Int(abs(delta))))
+        if delta > 0 {
+            scrollUp(lines: velocity)
         } else {
             scrollDown(lines: velocity)
         }
