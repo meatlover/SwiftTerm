@@ -78,12 +78,18 @@ final class ScreenTests {
     }
 
     @Test func testUserScrollingAdjustsOnTrim() {
+        // With scrollback=1 + rows=2, the buffer holds at most 3 lines.
+        // After "1\r\n2\r\n3\r\n" the buffer is full and yBase=1.
+        // The user scrolls up to yDisp=0 (which now derives userScrolling=true
+        // inside setViewYDisp). Feeding "4\r\n" triggers the trim path,
+        // and the trim-time adjustment must keep yDisp pinned to the
+        // same content (clamped at 0 since we were already at the top).
         let (terminal, _) = TerminalTestHarness.makeTerminal(cols: 5, rows: 2, scrollback: 1)
         terminal.feed(text: "1\r\n2\r\n3\r\n")
 
         #expect(terminal.buffer.yBase == 1)
-        terminal.userScrolling = true
-        terminal.setViewYDisp(1)
+        terminal.setViewYDisp(0)             // yDisp=0 < yBase=1 → userScrolling becomes true
+        #expect(terminal.userScrolling)
         terminal.feed(text: "4\r\n")
 
         #expect(terminal.buffer.yDisp == 0)

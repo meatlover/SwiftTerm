@@ -5534,10 +5534,24 @@ open class Terminal {
         return copy
     }
 
+    /// Programmatically move the viewport. Also updates `userScrolling`
+    /// so that the auto-follow gate in `scroll(isWrapped:)` (and the
+    /// trim/yDisp paths around it) stays accurate.
+    ///
+    /// `userScrolling = true`  → user is in scrollback history; new
+    ///                            %output must NOT advance yDisp.
+    /// `userScrolling = false` → viewport is at bottom; new %output
+    ///                            advances yDisp to follow yBase.
+    ///
+    /// Deriving the flag here means it is correct whether the caller
+    /// is the wheel handler (scrollUp/scrollDown), the scrollbar
+    /// (scroll(toPosition:)), pageUp/pageDown, or any future input
+    /// path. See UserScrollingStickyTests.
     func setViewYDisp (_ newValue: Int)
     {
         buffer.yDisp = newValue
         synchronizedOutputBuffer?.yDisp = newValue
+        userScrolling = (newValue < buffer.yBase)
     }
 
     /**
