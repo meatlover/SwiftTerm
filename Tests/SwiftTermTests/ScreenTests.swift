@@ -37,7 +37,6 @@ final class ScreenTests {
         #expect(terminal.buffer.yBase == 3)
         #expect(terminal.buffer.yDisp == terminal.buffer.yBase)
 
-        terminal.userScrolling = true
         terminal.setViewYDisp(0)
         terminal.feed(text: "5\r\n")
 
@@ -72,7 +71,6 @@ final class ScreenTests {
         #expect(terminal.buffer.yBase == 1)
         TerminalTestHarness.assertLineText(terminal.buffer, row: 0, equals: "")
 
-        terminal.userScrolling = true
         terminal.setViewYDisp(0)
         TerminalTestHarness.assertLineText(terminal.buffer, row: 0, equals: "1ABCD")
     }

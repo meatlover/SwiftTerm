@@ -1391,8 +1391,6 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
         return firstRow...lastRow
     }
 #endif
-    
-    var userScrolling = false
 
     func getCurrentGraphicsContext () -> CGContext?
     {
