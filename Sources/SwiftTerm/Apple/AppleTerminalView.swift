@@ -1884,13 +1884,15 @@ extension TerminalView {
     
     public func scroll (toPosition: Double)
     {
-        userScrolling = true
+        // Note: userScrolling is now derived inside Terminal.setViewYDisp
+        // (which scrollTo eventually calls), so this method no longer
+        // toggles a flag. See UserScrollingStickyTests in the fork.
         let displayBuffer = terminal.displayBuffer
         let oldPosition = displayBuffer.yDisp
-        
+
         let maxScrollback = displayBuffer.lines.count - displayBuffer.rows
         var newScrollPosition = Int (Double (maxScrollback) * toPosition)
-        
+
         if newScrollPosition < 0 {
             newScrollPosition = 0
         }
@@ -1901,7 +1903,6 @@ extension TerminalView {
         if newScrollPosition != oldPosition {
             scrollTo(row: newScrollPosition)
         }
-        userScrolling = false
     }
     
     public func scrollTo (row: Int, notifyAccessibility: Bool = true)
