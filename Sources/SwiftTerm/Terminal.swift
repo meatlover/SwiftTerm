@@ -5088,7 +5088,19 @@ open class Terminal {
     public func getTopVisibleRow() -> Int {
         return buffer.yDisp
     }
-    
+
+    /**
+     * Returns the bottommost "live" row of the buffer in absolute
+     * scrollback coordinates (i.e. `yBase` — the row the cursor is
+     * on, counting all evicted-from-screen scrollback). Paired with
+     * `getTopVisibleRow()`, lets external callers determine whether
+     * the viewport is auto-following new output (top == base) or
+     * held in scrollback history (top < base).
+     */
+    public func getBottomLiveRow() -> Int {
+        return buffer.yBase
+    }
+
     // ESC c Full Reset (RIS)
     /// This performs a full reset of the terminal, like a soft reset, but additionally resets the buffer conents and scroll area.
     /// for a soft reset see `softReset`
