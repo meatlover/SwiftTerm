@@ -119,6 +119,9 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     /// reports no damage and the cursor blink phase has not changed. Set to `false` to
     /// disable for debugging.
     public var damageTrackingEnabled: Bool = true
+
+    /// Set to false to suppress iTerm2 inline image rendering (OSC 1337 File=…inline=1).
+    public var inlineImagesEnabled: Bool = true
 #if canImport(MetalKit)
     var metalView: MTKView?
     var metalRenderer: MetalTerminalRenderer?
