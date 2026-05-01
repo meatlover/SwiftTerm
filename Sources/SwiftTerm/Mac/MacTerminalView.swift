@@ -2138,6 +2138,33 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
         return calculateMouseHit(at: point)
     }
 
+    /// Converts a mouse event to a terminal grid position (col, row) where
+    /// row is relative to the top of the visible scrollback viewport.
+    /// Returns nil when the event is outside the terminal area.
+    public func screenCell(for event: NSEvent) -> (col: Int, row: Int)? {
+        let point = convert(event.locationInWindow, from: nil)
+        guard bounds.contains(point) else { return nil }
+        let grid = calculateMouseHit(at: point).grid
+        let displayBuffer = terminal.displayBuffer
+        let screenRow = grid.row - displayBuffer.yDisp
+        guard screenRow >= 0, screenRow < terminal.rows else { return nil }
+        return (col: grid.col, row: screenRow)
+    }
+
+    /// Returns the text content of a visible screen row (0 = top of visible area).
+    public func displayLineText(screenRow: Int) -> String {
+        let absRow = terminal.displayBuffer.yDisp + screenRow
+        guard absRow >= 0, absRow < terminal.displayBuffer.lines.count else { return "" }
+        let line = terminal.displayBuffer.lines[absRow]
+        var result = ""
+        for col in 0..<terminal.cols {
+            if col < line.count {
+                result.append(terminal.getCharacter(for: line[col]))
+            }
+        }
+        return result.trimmingCharacters(in: .whitespaces)
+    }
+
     func calculateMouseHit (at point: CGPoint) -> (grid: Position, pixels: Position)
     {
         func toInt (_ p: NSPoint) -> Position {
