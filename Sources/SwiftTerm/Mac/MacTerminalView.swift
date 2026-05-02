@@ -933,6 +933,24 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     /// Wire up to detect pane focus changes from mouse clicks.
     public var onBecomeFirstResponder: (() -> Void)?
 
+    /// Lets the host override the default iBeam cursor — e.g. show `.arrow`
+    /// while the user holds Command and hovers over an actionable item
+    /// (Meatmux's semantic-history file:line targets). Queried from
+    /// `mouseMoved(with:)` and `flagsChanged(with:)`. Return non-nil to
+    /// set that cursor; return nil to leave the cursor untouched (the
+    /// default cursor rect / SwiftTerm's own logic stands).
+    public var cursorOverride: ((NSEvent) -> NSCursor?)?
+
+    /// Host hook for handling Cmd+click on cells that aren't SwiftTerm-
+    /// detected URLs (Meatmux uses this for `auto_links` matches like
+    /// file paths, file:line targets, emails). Called from `mouseUp`
+    /// AFTER SwiftTerm's URL / mouse-mode short-circuits, so URLs still
+    /// route through `terminalDelegate.requestOpenLink`. Return true to
+    /// indicate the host handled the click — SwiftTerm exits without
+    /// further processing (no selection finalization). Return false to
+    /// let SwiftTerm's default behavior run.
+    public var onCmdClick: ((NSEvent) -> Bool)?
+
     public override func becomeFirstResponder() -> Bool {
         let response = super.becomeFirstResponder()
         if response {
@@ -1061,6 +1079,15 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
             }
         } else {
             turnOffUrlPreview ()
+        }
+        if let cur = cursorOverride?(event) {
+            cur.set()
+        } else if !event.modifierFlags.contains(.command) {
+            // Cmd just released — undo any prior arrow-cursor override
+            // by restoring the default iBeam. Without this, an arrow
+            // set during Cmd-hover would persist after release until
+            // the cursor crosses a cursor-rect boundary.
+            NSCursor.iBeam.set()
         }
         if terminal.keyboardEnhancementFlags.contains(.reportAllKeys),
            !kittyIsComposing,
@@ -2256,12 +2283,17 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
             sharedMouseEvent(with: event)
             return
         }
-        
+        if event.modifierFlags.contains(.command),
+           onCmdClick?(event) == true {
+            didSelectionDrag = false
+            return
+        }
+
         #if DEBUG
         // let hit = calculateMouseHit(with: event)
         //print ("Up at col=\(hit.col) row=\(hit.row) count=\(event.clickCount) selection.active=\(selection.active) didSelectionDrag=\(didSelectionDrag) ")
         #endif
-        
+
         didSelectionDrag = false
     }
     
@@ -2409,11 +2441,13 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
             reportLink(at: hit.grid)
         }
         updateHoverLink(at: hit.grid)
-        
+
         if terminal.mouseMode.sendMotionEvent() {
             let flags = encodeMouseEvent(with: event, overwriteRelease: true)
             terminal.sendMotion(buttonFlags: flags, x: hit.grid.col, y: hit.grid.row, pixelX: hit.pixels.col, pixelY: hit.pixels.row)
         }
+
+        if let cur = cursorOverride?(event) { cur.set() }
     }
     
     public override func scrollWheel(with event: NSEvent) {
