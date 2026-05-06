@@ -99,6 +99,11 @@ let targets: [Target] = [
         ],
         path: "Sources/Termcast"
     ),
+    .executableTarget (
+        name: "GridProbe",
+        dependencies: ["SwiftTerm"],
+        path: "Sources/GridProbe"
+    ),
     .testTarget(
         name: "SwiftTermTests",
         dependencies: ["SwiftTerm"],

@@ -282,6 +282,41 @@ public class EscapeSequenceParser {
         table.add (codes: [0x1b, 0x9c], state: .dcsPassthrough, action: .dcsUnhook, next: .ground)
         table.add (code: NonAsciiPrintable, state: .oscString, action: .oscPut, next: .oscString)
         table.add (code: NonAsciiPrintable, state: .apcString, action: .oscPut, next: .apcString)
+
+        // ── Meatmux fix: UTF-8 continuation bytes (0x80..0xBF) inside string-
+        // collecting states must be appended to the string, NOT interpreted as
+        // 8-bit C1 controls. The global anywhere rules above (lines ~178-179)
+        // map 0x80..0x97 to `.execute, .ground` for every state. That's
+        // correct for 7-bit-only streams, but for UTF-8 streams those bytes
+        // are continuation bytes (always 0x80..0xBF, never start bytes).
+        //
+        // In SINGLE-feed parses the bug is masked: the `.oscPut` action's
+        // INNER loop (see `case .oscPut:` in the dispatcher) consumes bytes
+        // ≥ 0x20 directly without re-entering the outer table lookup, so a
+        // continuation byte gets appended to `osc` even though the global
+        // table entry says otherwise. But when the byte stream is split
+        // across `feed()` calls and a continuation byte arrives FIRST in
+        // the new chunk, the outer loop's table lookup is what runs — and
+        // the global C1-control rule fires, exits the string state to
+        // `.ground`, and the remaining string body bytes leak onto the
+        // screen as visible printable text. End-user symptom: window-title
+        // OSC text from `ESC ] 0 ; <UTF-8 emoji> Title BEL` shows up
+        // overstamping the prompt area.
+        //
+        // Override 0x80..0x9F (the contested C1/UTF-8 overlap) to `.oscPut`
+        // / `.dcsPut` for the string-collecting states. Bytes 0xa0..0xFF
+        // are already covered via the NonAsciiPrintable lookup index above.
+        // Cost: lose 8-bit ST (0x9C), 8-bit OSC introducer (0x9D), and a
+        // handful of other 8-bit C1 controls *while inside an in-progress
+        // string sequence*. Modern terminals running UTF-8 don't use those.
+        let utf8ContinuationLowHalf = r (low: 0x80, high: 0xa0)  // 0x80..0x9F
+        table.add (codes: utf8ContinuationLowHalf, state: .oscString,
+                   action: .oscPut, next: .oscString)
+        table.add (codes: utf8ContinuationLowHalf, state: .apcString,
+                   action: .oscPut, next: .apcString)
+        table.add (codes: utf8ContinuationLowHalf, state: .dcsPassthrough,
+                   action: .dcsPut, next: .dcsPassthrough)
+
         return table
     }
     
