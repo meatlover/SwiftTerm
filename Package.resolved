@@ -5,8 +5,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/HdrHistogram/hdrhistogram-swift.git",
       "state" : {
-        "revision" : "de0b9b8a27956b9bfc9b4dce7d1c38ad7c579f19",
-        "version" : "0.1.4"
+        "revision" : "c2e1210df04b4fff47e53f2f9dad9cc45ae15d63",
+        "version" : "0.2.0"
       }
     },
     {
@@ -88,15 +88,6 @@
       "state" : {
         "revision" : "a27a07300cf4ae322e0079ca0a475c5583dd575f",
         "version" : "0.0.2"
-      }
-    },
-    {
-      "identity" : "yams",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/jpsim/Yams.git",
-      "state" : {
-        "revision" : "3d6871d5b4a5cd519adf233fbb576e0a2af71c17",
-        "version" : "5.4.0"
       }
     }
   ],
