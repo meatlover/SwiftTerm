@@ -608,6 +608,14 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     public var backspaceSendsControlH: Bool = false
 
     /// If this variable is set, this simulates the control key being pressed, it auto resets after we send data
+    /// Set to false to suppress iTerm2 inline image rendering (OSC 1337 File=…inline=1).
+    /// Mirrors MacTerminalView; AppleTerminalView.createImage reads it on every platform.
+    public var inlineImagesEnabled: Bool = true
+
+    /// Called when a scroll-up request arrives and the buffer is already at the top
+    /// (yDisp == 0). Mirrors MacTerminalView; AppleTerminalView.scrollUp calls it.
+    public var onScrolledPastTop: ((Int) -> Void)?
+
     public var controlModifier: Bool = false {
         didSet {
             if oldValue && !controlModifier {
