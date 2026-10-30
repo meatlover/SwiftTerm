@@ -37,6 +37,9 @@
 //
 // The text being composed (marked text) is shown at the caret by MarkedTextOverlay
 // (iOSMarkedTextOverlay.swift), updated from endTextInputEdit and the markedTextRange setter.
+// A composition still unfinished when the view loses the keyboard (it resigns first responder, or
+// a view controller is presented over it) is discarded, not sent (discardMarkedText, from
+// resignFirstResponder and unmarkText; see isAbandoningComposition).
 //
 //  Created by Miguel de Icaza on 1/28/21.
 //
@@ -267,8 +270,48 @@ extension TerminalView: UITextInput {
         endTextInputEdit()
     }
     
+    /// Drops the marked text (an unfinished composition) from the input storage without sending
+    /// anything; the input system is told the text changed. Used when the view loses focus.
+    func discardMarkedText() {
+        guard let marked = _markedTextRange else { return }
+        uitiLog("discardMarkedText() \(textInputStateDescription())")
+        beginTextInputEdit()
+        let start = TextPosition(offset: max(0, min(marked.startPosition.offset, textInputStorage.count)))
+        if marked.startPosition.offset >= 0, marked.endPosition.offset <= textInputStorage.count {
+            textInputStorage.removeSubrange(marked.fullRange(in: textInputStorage))
+        }
+        _markedTextRange = nil
+        _selectedTextRange = TextRange(from: start, to: start)
+        endTextInputEdit()
+    }
+
+    /// Whether an unmarkText now abandons the composition rather than commits it: the view is not
+    /// first responder or is resigning, or a view controller is being presented over its window.
+    /// UIKit commits the marked text through unmarkText both for a real commit (a candidate, space,
+    /// return) and when the keyboard is taken from the view: presenting a sheet tears the view down
+    /// as the keyboard's delegate while it is still first responder (setDelegate:force: ->
+    /// acceptAutocorrection -> unmarkText, seen on the iOS 27.0 simulator), and only a presentation
+    /// in progress tells the two apart.
+    var isAbandoningComposition: Bool {
+        if discardingComposition || !isFirstResponder {
+            return true
+        }
+        var controller = window?.rootViewController
+        while let presented = controller?.presentedViewController {
+            if presented.isBeingPresented {
+                return true
+            }
+            controller = presented
+        }
+        return false
+    }
+
     public func unmarkText() {
         uitiLog("unmarkText() \(textInputStateDescription())")
+        if _markedTextRange != nil, isAbandoningComposition {
+            discardMarkedText()
+            return
+        }
         if let previouslyMarkedRange = _markedTextRange {
             // Ensure that multi-char input (Chinese-Japanese keyboards) works:
             if let previouslyMarkedText = text(in: previouslyMarkedRange) {
