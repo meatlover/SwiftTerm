@@ -210,8 +210,8 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     var caretView: CaretView?
     // Shows the marked text (an input method's composition) at the caret, see iOSMarkedTextOverlay.swift
     var markedTextOverlay: MarkedTextOverlay?
-    // True while resignFirstResponder runs after it dropped a composition: what the input system then
-    // commits on its own (unmarkText, insertText of the composed letters) is discarded, not sent
+    // True while resignFirstResponder runs with a composition: what the input system then commits on
+    // its own (unmarkText, insertText of the composed letters) is discarded, not sent
     var discardingComposition = false
     var terminal: Terminal!
     private var progressBarView: TerminalProgressBarView?
@@ -1643,8 +1643,11 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     */
     open func insertText(_ text: String) {
         uitiLog("insertText(\(text.debugDescription)) \(textInputStateDescription())")
-        if discardingComposition {
-            uitiLog("insertText dropped: the composition was discarded on resignFirstResponder")
+        // Text the input system inserts while the view is resigning or no longer first responder is
+        // what it commits as it takes the keyboard away (another view became first responder): an
+        // unfinished composition, discarded, never sent
+        if discardingComposition || !isFirstResponder {
+            uitiLog("insertText dropped: the view is resigning or not first responder")
             return
         }
         commitTextInput(text, applyModifiers: true)
@@ -2171,6 +2174,13 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
         }
     }
  
+    /// A change of input views (the app swapping the soft keyboard for another input view, or back)
+    /// takes the keyboard away from an unfinished composition: it is discarded, never sent.
+    open override func reloadInputViews() {
+        discardMarkedText()
+        super.reloadInputViews()
+    }
+
     open override func becomeFirstResponder() -> Bool {
         let response = super.becomeFirstResponder()
         if response {
@@ -2184,11 +2194,12 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
         // A composition that is not finished when the view loses focus is discarded, never sent: UIKit
         // otherwise commits the marked text (unmarkText) while it resigns, and the letters reach the
         // remote end as typed
-        let hadComposition = _markedTextRange != nil
-        discardMarkedText()
-        discardingComposition = hadComposition
+        discardingComposition = _markedTextRange != nil
         let code = super.resignFirstResponder()
         discardingComposition = false
+        if code {
+            discardMarkedText()
+        }
         
         if code {
             terminal.setTerminalFocus(false)

@@ -37,9 +37,10 @@
 //
 // The text being composed (marked text) is shown at the caret by MarkedTextOverlay
 // (iOSMarkedTextOverlay.swift), updated from endTextInputEdit and the markedTextRange setter.
-// A composition still unfinished when the view loses the keyboard (it resigns first responder, or
-// a view controller is presented over it) is discarded, not sent (discardMarkedText, from
-// resignFirstResponder and unmarkText; see isAbandoningComposition).
+// A composition still unfinished when the view loses the keyboard (it resigns first responder, a
+// view controller is presented over it, the app leaves the foreground, or its input views are
+// reloaded) is discarded, not sent (discardMarkedText, from resignFirstResponder, reloadInputViews
+// and unmarkText; see isAbandoningComposition).
 //
 //  Created by Miguel de Icaza on 1/28/21.
 //
@@ -286,14 +287,18 @@ extension TerminalView: UITextInput {
     }
 
     /// Whether an unmarkText now abandons the composition rather than commits it: the view is not
-    /// first responder or is resigning, or a view controller is being presented over its window.
-    /// UIKit commits the marked text through unmarkText both for a real commit (a candidate, space,
-    /// return) and when the keyboard is taken from the view: presenting a sheet tears the view down
-    /// as the keyboard's delegate while it is still first responder (setDelegate:force: ->
-    /// acceptAutocorrection -> unmarkText, seen on the iOS 27.0 simulator), and only a presentation
-    /// in progress tells the two apart.
+    /// first responder or is resigning, its scene is not in the foreground and active, or a view
+    /// controller is being presented over its window. UIKit commits the marked text through
+    /// unmarkText both for a real commit (a candidate, space, return) and when the keyboard is taken
+    /// from the view while it is still first responder (seen on the iOS 27.0 simulator): presenting a
+    /// sheet tears the view down as the keyboard's delegate (setDelegate:force: ->
+    /// acceptAutocorrection -> unmarkText), and going to the background accepts the composition
+    /// (UIKeyboardImpl applicationWillSuspend: -> acceptAutocorrection -> unmarkText).
     var isAbandoningComposition: Bool {
         if discardingComposition || !isFirstResponder {
+            return true
+        }
+        if let scene = window?.windowScene, scene.activationState != .foregroundActive {
             return true
         }
         var controller = window?.rootViewController
