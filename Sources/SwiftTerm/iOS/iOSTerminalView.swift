@@ -208,6 +208,8 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
 #endif
     var cellDimension: CellDimension
     var caretView: CaretView?
+    // Shows the marked text (an input method's composition) at the caret, see iOSMarkedTextOverlay.swift
+    var markedTextOverlay: MarkedTextOverlay?
     var terminal: Terminal!
     private var progressBarView: TerminalProgressBarView?
     private var progressReportTimer: Timer?

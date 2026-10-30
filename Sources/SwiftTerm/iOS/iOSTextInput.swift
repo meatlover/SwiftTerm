@@ -35,9 +35,8 @@
 // 2. Inserting arabic characters, pick "م" and then "ا" should render "ما"
 
 //
-// Ideas:
-//   setMarkedText could show an overlay of the text being composed, so that
-//   there is a visual cue of what is going on for foreign language input users
+// The text being composed (marked text) is shown at the caret by MarkedTextOverlay
+// (iOSMarkedTextOverlay.swift), updated from endTextInputEdit and the markedTextRange setter.
 //
 //  Created by Miguel de Icaza on 1/28/21.
 //
@@ -114,6 +113,7 @@ extension TerminalView: UITextInput {
     func endTextInputEdit() {
         inputDelegate?.textDidChange(self)
         inputDelegate?.selectionDidChange(self)
+        updateMarkedTextOverlay()
         uitiLog("endTextInputEdit \(textInputStateDescription())")
     }
 
@@ -214,6 +214,7 @@ extension TerminalView: UITextInput {
         set {
             _markedTextRange = newValue as? TextRange
             uitiLog("markedTextRange -> \(_markedTextRange)")
+            updateMarkedTextOverlay()
         }
     }
     
