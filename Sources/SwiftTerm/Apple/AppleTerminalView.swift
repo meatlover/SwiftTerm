@@ -818,10 +818,40 @@ extension TerminalView {
 
     func linkForClick(at position: Position, hasCommandModifier: Bool) -> (link: String, params: [String:String])?
     {
+        link(at: position) { match in
+            linkVisibleForClick(match: match, hasCommandModifier: hasCommandModifier)
+        }
+    }
+
+    /// Whether a tap on a touch screen opens `match`. A finger has no hover, so the hover modes
+    /// cannot require the link to be highlighted first, and a tap opens implicit links (URLs in
+    /// the text) as well as explicit ones (OSC 8). The modifier modes still want the command key
+    /// held (a hardware keyboard).
+    func linkVisibleForTap(hasCommandModifier: Bool) -> Bool
+    {
+        switch linkHighlightMode {
+        case .always, .hover:
+            return true
+        case .alwaysWithModifier, .hoverWithModifier:
+            return hasCommandModifier
+        }
+    }
+
+    /// The link a touch tap at `position` opens, explicit or implicit, without hover; nil when
+    /// there is none there or `linkVisibleForTap` says no.
+    func linkForTap(at position: Position, hasCommandModifier: Bool) -> (link: String, params: [String:String])?
+    {
+        link(at: position) { _ in
+            linkVisibleForTap(hasCommandModifier: hasCommandModifier)
+        }
+    }
+
+    private func link(at position: Position, visible: (Terminal.LinkMatch) -> Bool) -> (link: String, params: [String:String])?
+    {
         guard let match = terminal.linkMatch(at: .buffer(position), mode: .explicitAndImplicit) else {
             return nil
         }
-        guard linkVisibleForClick(match: match, hasCommandModifier: hasCommandModifier) else {
+        guard visible(match) else {
             return nil
         }
         if match.isExplicit,

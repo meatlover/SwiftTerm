@@ -155,8 +155,8 @@ When a click/tap lands on an active link, ``TerminalView`` calls
 - Tracking is driven by `UIPointerInteraction` (iOS 13.4+) and
   `UIHoverGestureRecognizer` (iOS 13+).
 - The default highlight mode is `.hover`.
-- Single tap opens links only when the current `linkHighlightMode` considers the
-  link active/visible.
+- A finger cannot hover, so a single tap opens the link under it (explicit OSC 8
+  or implicit) in `.hover` and `.always` without any highlight first.
 - For modifier-based modes (`.hoverWithModifier`, `.alwaysWithModifier`),
   activation requires the Command key from a hardware keyboard.
 

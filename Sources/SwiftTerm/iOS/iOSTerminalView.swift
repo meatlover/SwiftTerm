@@ -713,7 +713,8 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
             }
 
             let tapHit = calculateTapHit(gesture: gestureRecognizer).grid
-            if let result = linkForClick(at: tapHit, hasCommandModifier: commandActive) {
+            // A tap opens the link under it: a finger cannot hover first (linkForTap)
+            if let result = linkForTap(at: tapHit, hasCommandModifier: commandActive) {
                 terminalDelegate?.requestOpenLink(source: self, link: result.link, params: result.params)
                 return
             }
