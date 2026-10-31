@@ -112,7 +112,8 @@ extension TerminalView {
             overlay = MarkedTextOverlay(frame: .zero)
             markedTextOverlay = overlay
         }
-        if overlay.superview !== self {
+        let appearing = overlay.superview !== self
+        if appearing {
             addSubview(overlay)
         }
         overlay.show(text, font: fontSet.normal, foreground: nativeForegroundColor, background: markedTextBackground)
@@ -126,6 +127,15 @@ extension TerminalView {
         overlay.frame = CGRect(x: place.x, y: caretY, width: place.width,
                                height: max(cellDimension.height, ceil(textSize.height)))
         bringSubviewToFront(overlay)
+        if appearing, !isRowVisible(top: caretY) {
+            compositionStartedOffScreen()
+        }
+    }
+
+    /// Whether the cell row whose top is at `top` (in content coordinates) lies wholly within the
+    /// visible bounds, give or take a point.
+    private func isRowVisible(top: CGFloat) -> Bool {
+        top >= bounds.minY - 1 && top + cellDimension.height <= bounds.maxY + 1
     }
 }
 #endif

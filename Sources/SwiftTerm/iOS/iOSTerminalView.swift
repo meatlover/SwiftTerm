@@ -703,10 +703,25 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
         contentOffset.y = max(0, CGFloat(lines) - bottomVisibleLine) * cellDimension.height
     }
     
+    /// Consulted for each link a single tap finds: false leaves the tap to the terminal, as a tap
+    /// anywhere else (it closes a selection or the edit menu, or shows the menu near the caret),
+    /// and `requestOpenLink` is not called. An app sets it to the links it opens, so a tap on a
+    /// path or a scheme it refuses is not swallowed. Nil: every link found opens.
+    public var tapOpensLink: ((String) -> Bool)?
+
+    /// A selection or the edit menu is showing: a single tap now only closes it and opens no link.
+    /// `singleTap` closes them, so an app's own tap recognizer that may run after it reads this as
+    /// the touch begins.
+    public var tapDismissesSelection: Bool
+    {
+        (selection?.active ?? false) || UIMenuController.shared.isMenuVisible
+    }
+
     /// The link a single tap at `point` (in this view's coordinates) opens while the view is first
-    /// responder: what `singleTap` passes to `requestOpenLink`; nil when the tap opens no link. An
-    /// app's own tap recognizer can ask this to tell a tap on a link from a tap on the terminal,
-    /// whatever order the recognizers run in.
+    /// responder: what `singleTap` passes to `requestOpenLink`; nil when the tap opens no link
+    /// (none there, `tapOpensLink` refuses it, or `tapDismissesSelection`). An app's own tap
+    /// recognizer can ask this to tell a tap on a link from a tap on the terminal, whatever order
+    /// the recognizers run in, with `tapDismissesSelection` read as the touch began.
     public func linkOpenedByTap(at point: CGPoint) -> String?
     {
         tapLink(at: point)?.link
@@ -714,7 +729,8 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
 
     func tapLink(at point: CGPoint) -> (link: String, params: [String:String])?
     {
-        linkForTap(at: calculateTapHit(point: point).grid, hasCommandModifier: commandActive)
+        touchTapLink(at: calculateTapHit(point: point).grid, hasCommandModifier: commandActive,
+                     dismissesFirst: tapDismissesSelection, opens: tapOpensLink)
     }
 
     @objc func singleTap (_ gestureRecognizer: UITapGestureRecognizer)
@@ -726,7 +742,9 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
                 return
             }
 
-            // A tap opens the link under it: a finger cannot hover first (linkForTap)
+            // A tap opens the link under it: a finger cannot hover first (linkForTap). Not while a
+            // selection or the menu is open, and not a link the app refuses (tapOpensLink): those
+            // taps go on below like any other
             if let result = tapLink(at: gestureRecognizer.location(in: self)) {
                 terminalDelegate?.requestOpenLink(source: self, link: result.link, params: result.params)
                 return
@@ -2188,11 +2206,22 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
         }
     }
  
-    /// A change of input views (the app swapping the soft keyboard for another input view, or back)
-    /// takes the keyboard away from an unfinished composition: it is discarded, never sent.
-    open override func reloadInputViews() {
+    /// Discards an unfinished composition (the marked text) without sending anything, and tells the
+    /// input system. For an app taking the soft keyboard away on the user's request while the view
+    /// stays first responder (a key that hides it behind an empty `inputView`): left alone, the
+    /// input method keeps the letters and carries on with them when the keyboard returns. A reload
+    /// of the input views by itself keeps the composition: the system minimising the soft keyboard
+    /// while a hardware keyboard types also leads to one, and that composition is still being typed.
+    public func discardComposition() {
         discardMarkedText()
-        super.reloadInputViews()
+    }
+
+    /// Called when a composition starts (marked text first appears) while the caret's row is not
+    /// visible, such as when the user scrolled back with the keyboard up: the overlay at the caret
+    /// would be off screen until the text is committed. The default scrolls to the caret
+    /// (`ensureCaretIsVisible`, as typing does); a subclass with its own scrolling rules overrides it.
+    open func compositionStartedOffScreen() {
+        ensureCaretIsVisible()
     }
 
     open override func becomeFirstResponder() -> Bool {

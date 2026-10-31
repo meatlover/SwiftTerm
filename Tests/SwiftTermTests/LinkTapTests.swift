@@ -53,5 +53,30 @@ struct LinkTapTests {
             #expect(view.linkForTap(at: Position(col: 3, row: 0), hasCommandModifier: true)?.link == "https://example.com/x")
         }
     }
+    @Test func testRefusedLinkIsLeftToTheTerminal() {
+        let view = view("cat /tmp/meaterm-x", mode: .hover)
+        let at = Position(col: 8, row: 0)
+        // Positive control: the path is found as an implicit link.
+        #expect(view.linkForTap(at: at, hasCommandModifier: false)?.link == "/tmp/meaterm-x")
+        let refused = view.touchTapLink(at: at, hasCommandModifier: false, dismissesFirst: false,
+                                        opens: { $0.hasPrefix("https://") })
+        #expect(refused == nil)
+        let unfiltered = view.touchTapLink(at: at, hasCommandModifier: false, dismissesFirst: false, opens: nil)
+        #expect(unfiltered?.link == "/tmp/meaterm-x")
+    }
+
+    @Test func testAcceptedLinkOpens() {
+        let view = view("see https://example.com/x tail", mode: .hover)
+        let result = view.touchTapLink(at: Position(col: 8, row: 0), hasCommandModifier: false,
+                                       dismissesFirst: false, opens: { $0.hasPrefix("https://") })
+        #expect(result?.link == "https://example.com/x")
+    }
+
+    @Test func testOpenSelectionOrMenuTakesTheTap() {
+        let view = view("see https://example.com/x tail", mode: .hover)
+        let result = view.touchTapLink(at: Position(col: 8, row: 0), hasCommandModifier: false,
+                                       dismissesFirst: true, opens: nil)
+        #expect(result == nil)
+    }
 }
 #endif

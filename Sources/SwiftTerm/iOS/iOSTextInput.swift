@@ -38,9 +38,11 @@
 // The text being composed (marked text) is shown at the caret by MarkedTextOverlay
 // (iOSMarkedTextOverlay.swift), updated from endTextInputEdit and the markedTextRange setter.
 // A composition still unfinished when the view loses the keyboard (it resigns first responder, a
-// view controller is presented over it, the app leaves the foreground, or its input views are
-// reloaded) is discarded, not sent (discardMarkedText, from resignFirstResponder, reloadInputViews
-// and unmarkText; see isAbandoningComposition).
+// view controller is presented over it, or the app leaves the foreground) is discarded, not sent
+// (discardMarkedText, from resignFirstResponder and unmarkText; see isAbandoningComposition). An
+// app that hides the soft keyboard while the view stays first responder calls
+// discardComposition(); a reload of the input views alone keeps the composition. A composition
+// that starts while the caret is scrolled out of view calls compositionStartedOffScreen().
 //
 //  Created by Miguel de Icaza on 1/28/21.
 //

@@ -846,6 +846,23 @@ extension TerminalView {
         }
     }
 
+    /// The link a touch tap at `position` opens, or nil when the tap belongs to the terminal: a
+    /// selection or the edit menu is open (`dismissesFirst`: the tap only closes it), there is no
+    /// link there (`linkForTap`), or the app's filter `opens` refuses the link found (a path, a
+    /// scheme the app does not open). Nil `opens` opens every link found.
+    func touchTapLink(at position: Position, hasCommandModifier: Bool, dismissesFirst: Bool,
+                      opens: ((String) -> Bool)?) -> (link: String, params: [String:String])?
+    {
+        guard !dismissesFirst,
+              let result = linkForTap(at: position, hasCommandModifier: hasCommandModifier) else {
+            return nil
+        }
+        if let opens, !opens(result.link) {
+            return nil
+        }
+        return result
+    }
+
     private func link(at position: Position, visible: (Terminal.LinkMatch) -> Bool) -> (link: String, params: [String:String])?
     {
         guard let match = terminal.linkMatch(at: .buffer(position), mode: .explicitAndImplicit) else {
