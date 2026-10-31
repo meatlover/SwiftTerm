@@ -621,6 +621,14 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     /// (yDisp == 0). Mirrors MacTerminalView; AppleTerminalView.scrollUp calls it.
     public var onScrolledPastTop: ((Int) -> Void)?
 
+    /// Called for every hardware key press before the terminal handles it: from pressesBegan
+    /// (isDown true) and from pressesEnded or pressesCancelled (isDown false), ahead of kitty
+    /// encoding, key repeat and super. `usage` is the HID keyboard usage (UIKeyboardHIDUsage
+    /// raw value). Return true to consume the press; consumed presses are removed from the set,
+    /// and when none remain the method returns without further handling. Nil by default, in
+    /// which case behaviour is unchanged.
+    public var onHardwareKey: ((_ usage: Int, _ isDown: Bool) -> Bool)?
+
     public var controlModifier: Bool = false {
         didSet {
             if oldValue && !controlModifier {
@@ -2268,7 +2276,18 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     /// property in case someone needs the return key to send different sequences.
     public var returnByteSequence: [UInt8] = [13]
     
+    /// Offers each keyed press to `onHardwareKey` and returns the presses it did not consume.
+    private func presses(afterHardwareKeyHook presses: Set<UIPress>, isDown: Bool) -> Set<UIPress> {
+        guard let hook = onHardwareKey else { return presses }
+        return presses.filter { press in
+            guard let key = press.key else { return true }
+            return !hook(key.keyCode.rawValue, isDown)
+        }
+    }
+
     public override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        let presses = self.presses(afterHardwareKeyHook: presses, isDown: true)
+        if presses.isEmpty && onHardwareKey != nil { return }
         var didHandleEvent = false
         let wasCommandActive = commandActive
         let kittyFlags = terminal.keyboardEnhancementFlags
@@ -2526,7 +2545,15 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
         }
     }
     
+    public override func pressesCancelled(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        let presses = self.presses(afterHardwareKeyHook: presses, isDown: false)
+        if presses.isEmpty && onHardwareKey != nil { return }
+        super.pressesCancelled(presses, with: event)
+    }
+
     public override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        let presses = self.presses(afterHardwareKeyHook: presses, isDown: false)
+        if presses.isEmpty && onHardwareKey != nil { return }
         keyRepeat?.invalidate()
         keyRepeat = nil
         let wasCommandActive = commandActive
