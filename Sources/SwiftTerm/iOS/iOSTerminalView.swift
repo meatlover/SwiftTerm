@@ -703,6 +703,20 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
         contentOffset.y = max(0, CGFloat(lines) - bottomVisibleLine) * cellDimension.height
     }
     
+    /// The link a single tap at `point` (in this view's coordinates) opens while the view is first
+    /// responder: what `singleTap` passes to `requestOpenLink`; nil when the tap opens no link. An
+    /// app's own tap recognizer can ask this to tell a tap on a link from a tap on the terminal,
+    /// whatever order the recognizers run in.
+    public func linkOpenedByTap(at point: CGPoint) -> String?
+    {
+        tapLink(at: point)?.link
+    }
+
+    func tapLink(at point: CGPoint) -> (link: String, params: [String:String])?
+    {
+        linkForTap(at: calculateTapHit(point: point).grid, hasCommandModifier: commandActive)
+    }
+
     @objc func singleTap (_ gestureRecognizer: UITapGestureRecognizer)
     {
         if isFirstResponder {
@@ -712,9 +726,8 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
                 return
             }
 
-            let tapHit = calculateTapHit(gesture: gestureRecognizer).grid
             // A tap opens the link under it: a finger cannot hover first (linkForTap)
-            if let result = linkForTap(at: tapHit, hasCommandModifier: commandActive) {
+            if let result = tapLink(at: gestureRecognizer.location(in: self)) {
                 terminalDelegate?.requestOpenLink(source: self, link: result.link, params: result.params)
                 return
             }
